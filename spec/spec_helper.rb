@@ -38,11 +38,14 @@ Chewy.settings = {
   delete_all_enabled: false
 }
 
-# High-level substitute for now-obsolete drop_indices
+# Low-level substitute for now-obsolete drop_indices
 def drop_indices
-  Chewy::Index.descendants.each do |index|
-    index.delete
-  end
+  response = Chewy.client.cat.indices
+  indices = response.body.lines.map { |line| line.split[2] }
+  return if indices.blank?
+
+  Chewy.client.indices.delete(index: indices)
+  Chewy.wait_for_status
 end
 
 # Chewy.transport_logger = Logger.new(STDERR)
