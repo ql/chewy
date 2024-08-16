@@ -40,7 +40,9 @@ Chewy.settings = {
 
 # High-level substitute for now-obsolete drop_indices
 def drop_indices
-  Chewy::Index.descendants.reject { |index| index.name.include?('Chewy::') }.each(&:delete)
+  Chewy::Index.descendants.each do |index|
+    index.delete
+  end
 end
 
 # Chewy.transport_logger = Logger.new(STDERR)
