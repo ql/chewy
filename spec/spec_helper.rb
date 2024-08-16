@@ -18,13 +18,22 @@ require 'chewy/rspec'
 
 host = ENV['ES_HOST'] || 'localhost'
 port = ENV['ES_PORT'] || 9250
+user = ENV['ES_USER'] || 'elastic'
+password = ENV.fetch('ES_PASSWORD')
 
 Chewy.settings = {
-  host: "#{host}:#{port}",
+  host: "https://#{host}:#{port}",
+  user: user,
+  password: password,
   wait_for_status: 'green',
   index: {
     number_of_shards: 1,
     number_of_replicas: 0
+  },
+  transport_options: {
+    ssl: {
+      ca_file: './tmp/http_ca.crt'
+    }
   }
 }
 
