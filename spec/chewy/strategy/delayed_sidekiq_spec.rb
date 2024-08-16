@@ -2,7 +2,7 @@ require 'spec_helper'
 
 if defined?(Sidekiq)
   require 'sidekiq/testing'
-  require 'mock_redis'
+  require 'redis'
 
   describe Chewy::Strategy::DelayedSidekiq do
     around do |example|
@@ -10,9 +10,10 @@ if defined?(Sidekiq)
     end
 
     before do
-      redis = MockRedis.new
+      redis = Redis.new
       allow(Sidekiq).to receive(:redis).and_yield(redis)
       Sidekiq::Worker.clear_all
+      described_class.clear_timechunks!
     end
 
     before do
@@ -35,7 +36,7 @@ if defined?(Sidekiq)
 
     it "respects 'refresh: false' options" do
       allow(Chewy).to receive(:disable_refresh_async).and_return(true)
-      expect(CitiesIndex).to receive(:import!).with([city.id, other_city.id], refresh: false)
+      expect(CitiesIndex).to receive(:import!).with(match_array([city.id, other_city.id]), refresh: false)
       scheduler = Chewy::Strategy::DelayedSidekiq::Scheduler.new(CitiesIndex, [city.id, other_city.id])
       scheduler.postpone
       Chewy::Strategy::DelayedSidekiq::Worker.drain
@@ -47,7 +48,7 @@ if defined?(Sidekiq)
           expect(Sidekiq::Client).to receive(:push).with(
             hash_including(
               'queue' => 'chewy',
-              'at' => (Time.current.to_i.ceil(-1) + 2.seconds).to_i,
+              'at' => expected_at_time.to_i,
               'class' => Chewy::Strategy::DelayedSidekiq::Worker,
               'args' => ['CitiesIndex', an_instance_of(Integer)]
             )
@@ -61,6 +62,11 @@ if defined?(Sidekiq)
               .and_reindex(city, other_city).only
           end
         end
+      end
+
+      def expected_at_time
+        target = described_class::Scheduler::DEFAULT_LATENCY.seconds.from_now.to_i
+        target - (target % described_class::Scheduler::DEFAULT_LATENCY) + described_class::Scheduler::DEFAULT_MARGIN.seconds
       end
     end
 
@@ -103,7 +109,7 @@ if defined?(Sidekiq)
     context 'two reindex call within the timewindow' do
       it 'accumulates all ids does the reindex one time' do
         Timecop.freeze do
-          expect(CitiesIndex).to receive(:import!).with([other_city.id, city.id]).once
+          expect(CitiesIndex).to receive(:import!).with(match_array([city.id, other_city.id])).once
           scheduler = Chewy::Strategy::DelayedSidekiq::Scheduler.new(CitiesIndex, [city.id])
           scheduler.postpone
           scheduler = Chewy::Strategy::DelayedSidekiq::Scheduler.new(CitiesIndex, [other_city.id])
@@ -115,7 +121,7 @@ if defined?(Sidekiq)
       context 'one call with update_fields another one without update_fields' do
         it 'does reindex of all fields' do
           Timecop.freeze do
-            expect(CitiesIndex).to receive(:import!).with([other_city.id, city.id]).once
+            expect(CitiesIndex).to receive(:import!).with(match_array([city.id, other_city.id])).once
             scheduler = Chewy::Strategy::DelayedSidekiq::Scheduler.new(CitiesIndex, [city.id], update_fields: ['name'])
             scheduler.postpone
             scheduler = Chewy::Strategy::DelayedSidekiq::Scheduler.new(CitiesIndex, [other_city.id])
@@ -128,7 +134,7 @@ if defined?(Sidekiq)
       context 'both calls with different update fields' do
         it 'deos reindex with union of fields' do
           Timecop.freeze do
-            expect(CitiesIndex).to receive(:import!).with([other_city.id, city.id], update_fields: %w[description name]).once
+            expect(CitiesIndex).to receive(:import!).with(match_array([city.id, other_city.id]), update_fields: %w[name description]).once
             scheduler = Chewy::Strategy::DelayedSidekiq::Scheduler.new(CitiesIndex, [city.id], update_fields: ['name'])
             scheduler.postpone
             scheduler = Chewy::Strategy::DelayedSidekiq::Scheduler.new(CitiesIndex, [other_city.id], update_fields: ['description'])
@@ -184,6 +190,18 @@ if defined?(Sidekiq)
           scheduler.postpone
           Chewy::Strategy::DelayedSidekiq::Worker.drain
         end
+      end
+    end
+
+    describe '#clear_delayed_sidekiq_timechunks test helper' do
+      it 'clears redis from the timechunk sorted sets to avoid leak between tests' do
+        timechunks_set = -> { Sidekiq.redis { |redis| redis.zrange('chewy:delayed_sidekiq:CitiesIndex:timechunks', 0, -1) } }
+
+        expect { CitiesIndex.import!([1], strategy: :delayed_sidekiq) }
+          .to change { timechunks_set.call.size }.by(1)
+
+        expect { Chewy::Strategy::DelayedSidekiq.clear_timechunks! }
+          .to change { timechunks_set.call.size }.to(0)
       end
     end
   end

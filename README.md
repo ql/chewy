@@ -776,9 +776,12 @@ Chewy.settings[:sidekiq] = {queue: :low}
 
 #### `:delayed_sidekiq`
 
-It accumulates ids of records to be reindexed during the latency window in redis and then does the reindexing of all accumulated records at once.
-The strategy is very useful in case of frequently mutated records.
-It supports `update_fields` option, so it will try to select just enough data from the DB
+It accumulates IDs of records to be reindexed during the latency window in Redis and then performs the reindexing of all accumulated records at once. 
+This strategy is very useful in the case of frequently mutated records. 
+It supports the `update_fields` option, so it will attempt to select just enough data from the database.
+
+Keep in mind, this strategy does not guarantee reindexing in the event of Sidekiq worker termination or an error during the reindexing phase. 
+This behavior is intentional to prevent continuous growth of Redis db.
 
 There are three options that can be defined in the index:
 ```ruby
@@ -846,6 +849,12 @@ CitiesIndex.import([1, 2, 3], strategy: :delayed_sidekiq)
 Explicit call of the reindex using `:delayed_sidekiq` strategy with `:update_fields` support
 ```ruby
 CitiesIndex.import([1, 2, 3], update_fields: [:name], strategy: :delayed_sidekiq)
+```
+
+While running tests with delayed_sidekiq strategy and Sidekiq is using a real redis instance that is NOT cleaned up in between tests (via e.g. `Sidekiq.redis(&:flushdb)`), you'll want to cleanup some redis keys in between tests to avoid state leaking and flaky tests. Chewy provides a convenience method for that:
+```ruby
+# it might be a good idea to also add to your testing setup, e.g.: a rspec `before` hook
+Chewy::Strategy::DelayedSidekiq.clear_timechunks!
 ```
 
 #### `:active_job`
@@ -1273,6 +1282,41 @@ If you use `DatabaseCleaner` in your tests with [the `transaction` strategy](htt
 ```ruby
 #config/initializers/chewy.rb
 Chewy.use_after_commit_callbacks = !Rails.env.test?
+```
+
+### Pre-request Filter
+
+Should you need to inspect the query prior to it being dispatched to ElasticSearch during any queries, you can use the `before_es_request_filter`. `before_es_request_filter` is a callable object, as demonstrated below:
+
+```ruby
+Chewy.before_es_request_filter = -> (method_name, args, kw_args) { ... }
+```
+
+While using the `before_es_request_filter`, please consider the following:
+
+* `before_es_request_filter` acts as a simple proxy before any request made via the    `ElasticSearch::Client`. The arguments passed to this filter include:
+  * `method_name` -  The name of the method being called. Examples are search, count, bulk and etc.
+  * `args` and `kw_args` - These are the positional arguments provided in the method call.
+* The operation is synchronous, so avoid executing any heavy or time-consuming operations within the filter to prevent performance degradation.
+* The return value of the proc is disregarded. This filter is intended for inspection or modification of the query rather than generating a response.
+* Any exception raised inside the callback will propagate upward and halt the execution of the query. It is essential to handle potential errors adequately to ensure the stability of your search functionality.
+
+### Import scope clean-up behavior
+
+Whenever you set the `import_scope` for the index, in the case of ActiveRecord,
+options for order, offset and limit will be removed. You can set the behavior of
+chewy, before the clean-up itself.
+
+The default behavior is a warning sent to the Chewy logger (`:warn`). Another more
+restrictive option is raising an exception (`:raise`). Both options have a
+negative impact on performance since verifying whether the code uses any of
+these options requires building AREL query.
+
+To avoid the loading time impact, you can ignore the check (`:ignore`) before
+the clean-up.
+
+```
+Chewy.import_scope_cleanup_behavior = :ignore
 ```
 
 ## Contributing

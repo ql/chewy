@@ -8,6 +8,34 @@
 
 ### Bugs Fixed
 
+## 7.6.0 (2024-05-03)
+
+### Changes
+
+* [#933](https://github.com/toptal/chewy/pull/933): Relax allowed `elasticsearch` dependency versions. ([@mjankowski][])
+
+### Bugs Fixed
+* [#937](https://github.com/toptal/chewy/pull/937): Fix for race condition while using the `delayed_sidekiq` strategy. Also, fix for Redis bloating in case of reindexing error ([@skcc321](https://github.com/skcc321))
+
+* [#947](https://github.com/toptal/chewy/pull/947): Fix intermittent time-based failure in delayed sidekiq spec. ([@mjankowski][])
+
+## 7.5.1 (2024-01-30)
+
+### New Features
+
+* [#925](https://github.com/toptal/chewy/pull/925): Add configuration option for default scope cleanup behavior. ([@barthez][])
+
+### Changes
+
+### Bugs Fixed
+
+## 7.5.0 (2024-01-15)
+
+### New Features
+
+* [#894](https://github.com/toptal/chewy/pull/894): Way of cleaning redis from artifacts left by `delayed_sidekiq` strategy which could potentially cause flaky tests. ([@Drowze](https://github.com/Drowze))
+* [#919](https://github.com/toptal/chewy/pull/919): Add pre-request filter ([@konalegi][https://github.com/konalegi])
+
 ## 7.4.0 (2023-12-13)
 
 ### New Features
@@ -18,7 +46,7 @@
 
 ### Bugs Fixed
 
-## 7.3.5 (2023-12-13)
+## 7.3.6 (2023-12-13)
 
 ### New Features
 
