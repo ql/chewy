@@ -34,7 +34,8 @@ Chewy.settings = {
     ssl: {
       ca_file: './tmp/http_ca.crt'
     }
-  }
+  },
+  delete_all_enabled: false
 }
 
 # Chewy.transport_logger = Logger.new(STDERR)

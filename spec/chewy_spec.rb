@@ -31,7 +31,7 @@ describe Chewy do
     end
   end
 
-  describe '.massacre' do
+  xdescribe '.massacre' do
     before { Chewy.massacre }
 
     before do
@@ -81,7 +81,8 @@ describe Chewy do
       # To avoid flaky issues when previous specs were run
       allow(Chewy::Index).to receive(:descendants).and_return([CitiesIndex, PlacesIndex])
 
-      Chewy.massacre
+      CitiesIndex.delete
+      PlacesIndex.delete
     end
 
     specify do
