@@ -32,7 +32,7 @@ describe Chewy do
   end
 
   xdescribe '.massacre' do
-    before { Chewy.massacre }
+    before { drop_indices }
 
     before do
       allow(Chewy).to receive_messages(configuration: Chewy.configuration.merge(prefix: 'prefix1'))
@@ -40,7 +40,7 @@ describe Chewy do
       allow(Chewy).to receive_messages(configuration: Chewy.configuration.merge(prefix: 'prefix2'))
       stub_index(:developers).create!
 
-      Chewy.massacre
+      drop_indices
 
       allow(Chewy).to receive_messages(configuration: Chewy.configuration.merge(prefix: 'prefix1'))
     end
